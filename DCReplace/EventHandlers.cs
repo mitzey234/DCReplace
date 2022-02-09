@@ -132,6 +132,10 @@ namespace DCReplace
 			Player replacement = Player.List.FirstOrDefault(x => x.Role == RoleType.Spectator && x.Id != player.Id && !x.IsOverwatchEnabled);
 			if (replacement != null)
 			{
+				// Have to do this early
+				var inventory = player.Items.Select(x => x.Type).ToList();
+				player.ClearInventory();
+
 				PositionsToSpawn.Add(replacement, player.Position);
 				if (isSH)
 				{
@@ -174,7 +178,6 @@ namespace DCReplace
 				}*/
 
 				// save info
-				var inventory = player.Items.Select(x => x.Type).ToList();
 				float health = player.Health;
 				byte scp079lvl = 1;
 				float scp079exp = 0f;
