@@ -164,7 +164,8 @@ namespace DCReplace
 				{
 					try
 					{
-						TrySpawn035(replacement);
+						// todo: fix this
+						//TrySpawn035(replacement);
 					}
 					catch (Exception x)
 					{
