@@ -62,6 +62,7 @@ namespace DCReplace
 		/// Firstly creates a reference to the plugin we are trying to get. If it doesn't already exist.
 		/// Then uses the plugin to call the required API's to get 966 information. Saves player
 		/// reference as private variable. Non-static. Under assumption of only 1 966 allowed at one time. 
+		/// Assumption that API will send back player. Original implementation was some sort of string. 
 		/// </summary>
 		private void TryGet966()
 		{
