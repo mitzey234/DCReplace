@@ -35,14 +35,13 @@ namespace DCReplace
 
 			if (scp035Plugin != null)
 			{
-				Log.Info("Plugin already loaded, just going to grab our needed func call");
+
 				//Under assumption of only 1 035 allowed at one time. 
 				scp035PlayerReference = (Player)scp035Plugin?.Assembly?.GetType("scp035.API.Scp035Data")?.GetMethod("GetScp035", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null);
 				return;
 			}
 
 
-			Log.Info("Plugin not already loaded");
 
 			try
 			{
@@ -149,16 +148,16 @@ namespace DCReplace
 			bool is966 = false;
 			if (isContain106 && player.Role == RoleType.Scp106) return;
 			Dictionary<Player, bool> spies = null;
-			Log.Info("uhhh");
+
 			try
 			{
 
 				TryGet035();
-				Log.Info("We got some information for 035 hopefully");
+
 				//May want to consider by nickname or something.
 				is035 = scp035PlayerReference != null && scp035PlayerReference == player;
 				string data = scp035PlayerReference != null ? scp035PlayerReference.Nickname : "Data returned null";
-				Log.Info($"Was 035 null: {!is035} and if it wasn't what was result: {data}");
+
 			}
 			catch (Exception x)
 			{
@@ -203,8 +202,7 @@ namespace DCReplace
 			{
 				// Have to do this early
 				var inventory = player.Items.Select(x => x.Type).ToList();
-				Log.Info(inventory);
-				Log.Info("Going to clear inventory");
+
 				player.ClearInventory();
 
 				PositionsToSpawn.Add(replacement, player.Position);
