@@ -23,11 +23,6 @@ namespace DCReplace
 		private Player scp966PlayerReference;
 		private Exiled.API.Interfaces.IPlugin<Exiled.API.Interfaces.IConfig> scp966Plugin;
 
-		/// <summary>
-		/// Firstly creates a reference to the plugin we are trying to get. If it doesn't already exist.
-		/// Then uses the plugin to call the required API's to get 035 information. Saves player
-		/// reference as private variable. Non-static. Under assumption of only 1 035's allowed at one time. 
-		/// </summary>
 		private void TryGet035()
 		{
 
@@ -45,8 +40,11 @@ namespace DCReplace
 
 			try
 			{
+
 				//Under assumption of only 1 035 allowed at one time. 
+
 				scp035Plugin = Loader.Plugins.FirstOrDefault(pl => pl.Name == "scp035");
+
 				scp035PlayerReference = (Player)scp035Plugin?.Assembly?.GetType("scp035.API.Scp035Data")?.GetMethod("GetScp035", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null);
 			}
 			catch (Exception e)
@@ -55,42 +53,6 @@ namespace DCReplace
 			}
 
 			return;
-		}
-
-
-		/// <summary>
-		/// Firstly creates a reference to the plugin we are trying to get. If it doesn't already exist.
-		/// Then uses the plugin to call the required API's to get 966 information. Saves player
-		/// reference as private variable. Non-static. Under assumption of only 1 966 allowed at one time. 
-		/// Assumption that API will send back player. Original implementation was some sort of string. 
-		/// </summary>
-		private void TryGet966()
-		{
-			/*
-			 * 	
-			 * 	if ((string)Loader.Plugins.First(pl => pl.Name == "scp966")?.Assembly?.GetType("scp966.API.Scp966API")?.GetMethod("GetLastScp966", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null) == player.UserId)
-				{
-					Loader.Plugins.First(pl => pl.Name == "scp966").Assembly.GetType("scp966.API.Scp966API").GetMethod("Spawn966", BindingFlags.Public | BindingFlags.Static).Invoke(null, new object[] { replacement });
-				}
-
-			*/
-			if (scp966Plugin != null)
-			{
-				scp966PlayerReference = ((Player)scp966Plugin?.Assembly?.GetType("scp966.API.Scp966API")?.GetMethod("GetLastScp966", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null));
-				return;
-			}
-
-			try
-			{
-
-				scp966Plugin = Loader.Plugins.FirstOrDefault(pl => pl.Name == "scp966");
-
-				scp966PlayerReference = (Player)(scp966Plugin?.Assembly?.GetType("scp966.API.Scp966API")?.GetMethod("GetLastScp966", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null));
-			}
-			catch (Exception e)
-			{
-				Log.Debug("Failed getting 966s: " + e);
-			}
 		}
 
 		private List<Player> TryGetSH()
@@ -154,11 +116,10 @@ namespace DCReplace
 			{
 
 				TryGet035();
-
 				//May want to consider by nickname or something.
 				is035 = scp035PlayerReference != null && scp035PlayerReference == player;
 				string data = scp035PlayerReference != null ? scp035PlayerReference.Nickname : "Data returned null";
-
+				Log.Info($"Was 035 null: {!is035} and if it wasn't what was result: {data}");
 			}
 			catch (Exception x)
 			{
@@ -203,6 +164,7 @@ namespace DCReplace
 			{
 				// Have to do this early
 				var inventory = player.Items.Select(x => x.Type).ToList();
+
 
 				player.ClearInventory();
 
@@ -279,6 +241,35 @@ namespace DCReplace
 			}
 		}
 
+		private void TryGet966()
+		{
+			/*
+			 * 	
+			 * 	if ((string)Loader.Plugins.First(pl => pl.Name == "scp966")?.Assembly?.GetType("scp966.API.Scp966API")?.GetMethod("GetLastScp966", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null) == player.UserId)
+				{
+					Loader.Plugins.First(pl => pl.Name == "scp966").Assembly.GetType("scp966.API.Scp966API").GetMethod("Spawn966", BindingFlags.Public | BindingFlags.Static).Invoke(null, new object[] { replacement });
+				}
+
+			*/
+			if (scp966Plugin != null)
+			{
+				scp966PlayerReference = ((Player)Loader.Plugins.First(pl => pl.Name == "scp966")?.Assembly?.GetType("scp966.API.Scp966API")?.GetMethod("GetLastScp966", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null));
+				return;
+			}
+
+			try
+			{
+				if (scp966Plugin == null)
+				{
+					scp966Plugin = (Exiled.API.Interfaces.IPlugin<Exiled.API.Interfaces.IConfig>)Loader.Plugins.FirstOrDefault(pl => pl.Name == "scp966");
+				}
+				scp966PlayerReference = (Player)(scp966Plugin?.Assembly?.GetType("scp966.API.Scp966API")?.GetMethod("GetLastScp966", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null));
+			}
+			catch (Exception e)
+			{
+				Log.Debug("Failed getting 966s: " + e);
+			}
+		}
 
 		public void OnRoundStart()
 		{
