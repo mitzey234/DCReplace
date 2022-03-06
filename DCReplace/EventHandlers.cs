@@ -1,14 +1,13 @@
-﻿using MEC;
-using System.Linq;
-using UnityEngine;
+﻿using Exiled.API.Enums;
+using Exiled.API.Features;
+using Exiled.Events.EventArgs;
+using Exiled.Loader;
+using MEC;
 using System;
 using System.Collections.Generic;
-using Exiled.Events.EventArgs;
-using Exiled.API.Features;
-using Exiled.API.Enums;
-using Exiled.Loader;
+using System.Linq;
 using System.Reflection;
-using CustomPlayerEffects;
+using UnityEngine;
 
 namespace DCReplace
 {
@@ -19,30 +18,82 @@ namespace DCReplace
 
 		private Dictionary<Player, Vector3> PositionsToSpawn = new Dictionary<Player, Vector3>();
 
-		private List<Player> TryGet035()
-		{
-			List<Player> scp035 = null;
+		private Player scp035PlayerReference = null;
+		private Exiled.API.Interfaces.IPlugin<Exiled.API.Interfaces.IConfig> scp035Plugin;
+		private Player scp966PlayerReference;
+		private Exiled.API.Interfaces.IPlugin<Exiled.API.Interfaces.IConfig> scp966Plugin;
 
-			foreach (var plugin in Loader.Plugins)
+		/// <summary>
+		/// Firstly creates a reference to the plugin we are trying to get. If it doesn't already exist.
+		/// Then uses the plugin to call the required API's to get 035 information. Saves player
+		/// reference as private variable. Non-static. Under assumption of only 1 035's allowed at one time. 
+		/// </summary>
+		private void TryGet035()
+		{
+
+			Log.Info("Getting035");
+
+			if (scp035Plugin != null)
 			{
-				if (plugin.Name == "scp035")
-				{
-					try
-					{
-						scp035 = (List<Player>)Loader.Plugins.First(pl => pl.Name == "scp035").Assembly.GetType("scp035.API.Scp035Data").GetMethod("GetScp035s", BindingFlags.Public | BindingFlags.Static).Invoke(null, null);
-					}
-					catch (Exception e)
-					{
-						Log.Debug("Failed getting 035s: " + e);
-						scp035 = new List<Player>();
-					}
-				}
+				Log.Info("Plugin already loaded, just going to grab our needed func call");
+				//Under assumption of only 1 035 allowed at one time. 
+				scp035PlayerReference = (Player)scp035Plugin?.Assembly?.GetType("scp035.API.Scp035Data")?.GetMethod("GetScp035", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null);
+				return;
 			}
-			if (scp035 == null) scp035 = new List<Player>();
-			return scp035;
+
+
+			Log.Info("Plugin not already loaded");
+
+			try
+			{
+				//Under assumption of only 1 035 allowed at one time. 
+				scp035Plugin = Loader.Plugins.FirstOrDefault(pl => pl.Name == "scp035");
+				scp035PlayerReference = (Player)scp035Plugin?.Assembly?.GetType("scp035.API.Scp035Data")?.GetMethod("GetScp035", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null);
+			}
+			catch (Exception e)
+			{
+				Log.Debug("Failed getting 035s: " + e);
+			}
+
+			return;
 		}
 
-		private List<Player> TryGetSH() 
+
+		/// <summary>
+		/// Firstly creates a reference to the plugin we are trying to get. If it doesn't already exist.
+		/// Then uses the plugin to call the required API's to get 966 information. Saves player
+		/// reference as private variable. Non-static. Under assumption of only 1 966 allowed at one time. 
+		/// </summary>
+		private void TryGet966()
+		{
+			/*
+			 * 	
+			 * 	if ((string)Loader.Plugins.First(pl => pl.Name == "scp966")?.Assembly?.GetType("scp966.API.Scp966API")?.GetMethod("GetLastScp966", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null) == player.UserId)
+				{
+					Loader.Plugins.First(pl => pl.Name == "scp966").Assembly.GetType("scp966.API.Scp966API").GetMethod("Spawn966", BindingFlags.Public | BindingFlags.Static).Invoke(null, new object[] { replacement });
+				}
+
+			*/
+			if (scp966Plugin != null)
+			{
+				scp966PlayerReference = ((Player)Loader.Plugins.First(pl => pl.Name == "scp966")?.Assembly?.GetType("scp966.API.Scp966API")?.GetMethod("GetLastScp966", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null));
+				return;
+			}
+
+			try
+			{
+
+				scp966Plugin = Loader.Plugins.FirstOrDefault(pl => pl.Name == "scp966");
+
+				scp966PlayerReference = (Player)(scp966Plugin?.Assembly?.GetType("scp966.API.Scp966API")?.GetMethod("GetLastScp966", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null));
+			}
+			catch (Exception e)
+			{
+				Log.Debug("Failed getting 966s: " + e);
+			}
+		}
+
+		private List<Player> TryGetSH()
 		{
 			List<Player> Serpants;
 			if (Loader.Plugins.Where(pl => pl.Name == "SerpentsHand").ToList().Count > 0)
@@ -66,44 +117,48 @@ namespace DCReplace
 		private Dictionary<Player, bool> TryGetSpies()
 		{
 			Dictionary<Player, bool> players = new Dictionary<Player, bool>();
-			if (Loader.Plugins.FirstOrDefault(pl => pl.Name == "CiSpy") != null)
-				players = (Dictionary<Player, bool>)Loader.Plugins.First(pl => pl.Name == "CiSpy").Assembly.GetType("CISpy.API.SpyData").GetMethod("GetSpies", BindingFlags.Public | BindingFlags.Static).Invoke(null, null);
+
+			players = (Dictionary<Player, bool>)Loader.Plugins.FirstOrDefault(pl => pl.Name == "CiSpy")?.Assembly?.GetType("CISpy.API.SpyData")?.GetMethod("GetSpies", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null);
 			return players;
 		}
 
-		private void TrySpawnSpy(Player player, Player dc, Dictionary<Player, bool> spies) 
+		private void TrySpawnSpy(Player player, Player dc, Dictionary<Player, bool> spies)
 		{
-			if (Loader.Plugins.FirstOrDefault(pl => pl.Name == "CiSpy") != null)
-			{
-				Loader.Plugins.First(pl => pl.Name == "CiSpy").Assembly.GetType("CISpy.API.SpyData").GetMethod("MakeSpy", BindingFlags.Public | BindingFlags.Static).Invoke(null, new object[] { player, spies[dc], false });
-			}
+
+			Loader.Plugins.FirstOrDefault(pl => pl.Name == "CiSpy")?.Assembly?.GetType("CISpy.API.SpyData")?.GetMethod("MakeSpy", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, new object[] { player, spies[dc], false });
+
 		}
 
-		private void TrySpawnSH(Player player) 
+		private void TrySpawnSH(Player player)
 		{
-			if (Loader.Plugins.FirstOrDefault(pl => pl.Name == "SerpentsHand") != null)
-			{
-				Loader.Plugins.First(pl => pl.Name == "SerpentsHand").Assembly.GetType("SerpentsHand.API.SerpentsHand").GetMethod("SpawnPlayer", BindingFlags.Public | BindingFlags.Static).Invoke(null, new object[] { player, false });
-			}
-		} 
+
+			Loader.Plugins.FirstOrDefault(pl => pl.Name == "SerpentsHand")?.Assembly?.GetType("SerpentsHand.API.SerpentsHand")?.GetMethod("SpawnPlayer", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, new object[] { player, false });
+
+		}
 		private void TrySpawn035(Player player)
 		{
-			if (Loader.Plugins.FirstOrDefault(pl => pl.Name == "scp035") != null)
-			{
-				Loader.Plugins.First(pl => pl.Name == "scp035").Assembly.GetType("scp035.API.Scp035Data").GetMethod("Spawn035", BindingFlags.Public | BindingFlags.Static).Invoke(null, new object[] { player });
-			}
+
+			Loader.Plugins.FirstOrDefault(pl => pl.Name == "scp035")?.Assembly?.GetType("scp035.API.Scp035Data")?.GetMethod("Spawn035", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, new object[] { player });
+
 		}
 
 		private void ReplacePlayer(Player player)
 		{
 			bool is035 = false;
 			bool isSH = false;
+			bool is966 = false;
 			if (isContain106 && player.Role == RoleType.Scp106) return;
 			Dictionary<Player, bool> spies = null;
-
+			Log.Info("uhhh");
 			try
 			{
-				is035 = TryGet035().Contains(player);
+
+				TryGet035();
+				Log.Info("We got some information for 035 hopefully");
+				//May want to consider by nickname or something.
+				is035 = scp035PlayerReference != null && scp035PlayerReference == player;
+				string data = scp035PlayerReference != null ? scp035PlayerReference.Nickname : "Data returned null";
+				Log.Info($"Was 035 null: {!is035} and if it wasn't what was result: {data}");
 			}
 			catch (Exception x)
 			{
@@ -117,6 +172,7 @@ namespace DCReplace
 			}
 			catch (Exception x)
 			{
+				Log.Error(x);
 				Log.Debug("Serpents Hand is not installed, skipping method call...");
 			}
 
@@ -126,14 +182,29 @@ namespace DCReplace
 			}
 			catch (Exception x)
 			{
+				Log.Error(x);
 				Log.Debug("CISpy is not installed, skipping method call...");
 			}
+
+			try
+			{
+				TryGet966();
+				is966 = scp966PlayerReference != null && scp966PlayerReference == player;
+			}
+			catch (Exception x)
+			{
+				Log.Error(x);
+				Log.Debug("CISpy is not installed, skipping method call...");
+			}
+
 
 			Player replacement = Player.List.FirstOrDefault(x => x.Role == RoleType.Spectator && x.Id != player.Id && !x.IsOverwatchEnabled);
 			if (replacement != null)
 			{
 				// Have to do this early
 				var inventory = player.Items.Select(x => x.Type).ToList();
+				Log.Info(inventory);
+				Log.Info("Going to clear inventory");
 				player.ClearInventory();
 
 				PositionsToSpawn.Add(replacement, player.Position);
@@ -164,8 +235,8 @@ namespace DCReplace
 				{
 					try
 					{
-						// todo: fix this
-						//TrySpawn035(replacement);
+						TrySpawn035(replacement);
+
 					}
 					catch (Exception x)
 					{
@@ -208,6 +279,7 @@ namespace DCReplace
 				});
 			}
 		}
+
 
 		public void OnRoundStart()
 		{
