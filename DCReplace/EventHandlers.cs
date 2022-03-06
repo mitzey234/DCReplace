@@ -75,7 +75,7 @@ namespace DCReplace
 			*/
 			if (scp966Plugin != null)
 			{
-				scp966PlayerReference = ((Player)Loader.Plugins.First(pl => pl.Name == "scp966")?.Assembly?.GetType("scp966.API.Scp966API")?.GetMethod("GetLastScp966", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null));
+				scp966PlayerReference = ((Player)scp966Plugin?.Assembly?.GetType("scp966.API.Scp966API")?.GetMethod("GetLastScp966", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null));
 				return;
 			}
 
