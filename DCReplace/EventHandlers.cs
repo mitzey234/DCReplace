@@ -3,6 +3,7 @@ using Exiled.API.Features;
 using Exiled.Events.EventArgs;
 using Exiled.Loader;
 using MEC;
+using SharedLogicOrchestrator;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -23,7 +24,7 @@ namespace DCReplace
 		private Player scp966PlayerReference;
 		private Exiled.API.Interfaces.IPlugin<Exiled.API.Interfaces.IConfig> scp966Plugin;
 
-		private void TryGet035()
+		private void TryGet035(Player currPlayer)
 		{
 
 			Log.Info("Getting035");
@@ -32,7 +33,7 @@ namespace DCReplace
 			{
 
 				//Under assumption of only 1 035 allowed at one time. 
-				scp035PlayerReference = (Player)scp035Plugin?.Assembly?.GetType("scp035.API.Scp035Data")?.GetMethod("GetScp035", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null);
+				scp035PlayerReference = (Player)scp035Plugin?.Assembly?.GetType("scp035.API.Scp035Data")?.GetMethod("GetScp035IfRecentlyExisted", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, new object[] { currPlayer });
 				return;
 			}
 
@@ -45,7 +46,7 @@ namespace DCReplace
 
 				scp035Plugin = Loader.Plugins.FirstOrDefault(pl => pl.Name == "scp035");
 
-				scp035PlayerReference = (Player)scp035Plugin?.Assembly?.GetType("scp035.API.Scp035Data")?.GetMethod("GetScp035", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null);
+				scp035PlayerReference = (Player)scp035Plugin?.Assembly?.GetType("scp035.API.Scp035Data")?.GetMethod("GetScp035IfRecentlyExisted", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, new object[] { currPlayer });
 			}
 			catch (Exception e)
 			{
@@ -54,6 +55,14 @@ namespace DCReplace
 
 			return;
 		}
+
+		private CloneablePlayerInformation TryGetLast035Items(Player player)
+		{
+
+			return (CloneablePlayerInformation)Loader.Plugins.FirstOrDefault(pl => pl.Name == "scp035")?.Assembly?.GetType("scp035.API.Scp035Data")?.GetMethod("GetScp035ItemsIfRecentlyExisted", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, new object[] { player });
+
+		}
+
 
 		private List<Player> TryGetSH()
 		{
@@ -104,6 +113,7 @@ namespace DCReplace
 
 		}
 
+
 		private void ReplacePlayer(Player player)
 		{
 			bool is035 = false;
@@ -111,15 +121,17 @@ namespace DCReplace
 			bool is966 = false;
 			if (isContain106 && player.Role == RoleType.Scp106) return;
 			Dictionary<Player, bool> spies = null;
+			//We need this very early on
+
 
 			try
 			{
 
-				TryGet035();
+				TryGet035(player);
 				//May want to consider by nickname or something.
 				is035 = scp035PlayerReference != null && scp035PlayerReference == player;
 				string data = scp035PlayerReference != null ? scp035PlayerReference.Nickname : "Data returned null";
-				Log.Info($"Was 035 null: {!is035} and if it wasn't what was result: {data}");
+				Log.Info($"Who was player {player.Nickname} and were they 035: {is035} and if they weren't what was result: {data}");
 			}
 			catch (Exception x)
 			{
@@ -163,7 +175,7 @@ namespace DCReplace
 			if (replacement != null)
 			{
 				// Have to do this early
-				var inventory = player.Items.Select(x => x.Type).ToList();
+				List<ItemType> inventory = player.Items.Select(x => x.Type).ToList();
 
 
 				player.ClearInventory();
@@ -197,12 +209,14 @@ namespace DCReplace
 					try
 					{
 						TrySpawn035(replacement);
-
+						CloneablePlayerInformation newInventory = TryGetLast035Items(player);
+						loadPlayerWithReplacement(replacement, newInventory);
 					}
 					catch (Exception x)
 					{
-						Log.Debug("SCP-035 is not installed, skipping method call...");
+						Log.Debug($"SCP-035 is not installed, skipping method call... {x}");
 					}
+					return;
 				}
 
 				/*if ((string)Loader.Plugins.First(pl => pl.Name == "scp966")?.Assembly?.GetType("scp966.API.Scp966API")?.GetMethod("GetLastScp966", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null) == player.UserId)
@@ -211,34 +225,57 @@ namespace DCReplace
 				}*/
 
 				// save info
-				float health = player.Health;
-				byte scp079lvl = 1;
-				float scp079exp = 0f;
-				if (player.Role == RoleType.Scp079)
-				{
-					scp079lvl = player.ReferenceHub.scp079PlayerScript.Lvl;
-					scp079exp = player.ReferenceHub.scp079PlayerScript.Exp;
-				}
-				Dictionary<ItemType, ushort> ammo = new Dictionary<ItemType, ushort>();
-				foreach (ItemType ammoType in player.Ammo.Keys) ammo.Add(ammoType, player.Ammo[ammoType]);
-
-				Timing.CallDelayed(0.5f, () =>
-				{
-					replacement.ResetInventory(inventory);
-					replacement.Health = health;
-					foreach (ItemType ammoType in ammo.Keys)
-					{
-						replacement.Inventory.UserInventory.ReserveAmmo[ammoType] = ammo[ammoType];
-						replacement.Inventory.SendAmmoNextFrame = true;
-					}
-					replacement.Broadcast(5, "<i>You have replaced a player who has disconnected.</i>");
-					if (replacement.Role == RoleType.Scp079)
-					{
-						replacement.ReferenceHub.scp079PlayerScript.Lvl = scp079lvl;
-						replacement.ReferenceHub.scp079PlayerScript.Exp = scp079exp;
-					}
-				});
+				loadPlayerWithReplacement(player, replacement, inventory);
 			}
+		}
+		private void loadPlayerWithReplacement(Player replacement, CloneablePlayerInformation prevInventory)
+		{
+			Log.Debug($"What was previous inventory {prevInventory}");
+			Timing.CallDelayed(0.5f, () =>
+			{
+				replacement.ResetInventory(prevInventory.Items.Select(x => x.Type).ToList());
+
+				replacement.Health = prevInventory.Health;
+				Dictionary<ItemType, ushort> ammo = new Dictionary<ItemType, ushort>();
+				foreach (ItemType ammoType in prevInventory.Ammo.Keys)
+				{
+					replacement.Inventory.UserInventory.ReserveAmmo[ammoType] = ammo[ammoType];
+					replacement.Inventory.SendAmmoNextFrame = true;
+				}
+				replacement.Broadcast(5, "<i>You have replaced a player who has disconnected.</i>");
+			});
+		}
+
+
+		private void loadPlayerWithReplacement(Player player, Player replacement, List<ItemType> inventory)
+		{
+			float health = player.Health;
+			byte scp079lvl = 1;
+			float scp079exp = 0f;
+			if (player.Role == RoleType.Scp079)
+			{
+				scp079lvl = player.ReferenceHub.scp079PlayerScript.Lvl;
+				scp079exp = player.ReferenceHub.scp079PlayerScript.Exp;
+			}
+			Dictionary<ItemType, ushort> ammo = new Dictionary<ItemType, ushort>();
+			foreach (ItemType ammoType in player.Ammo.Keys) ammo.Add(ammoType, player.Ammo[ammoType]);
+
+			Timing.CallDelayed(0.5f, () =>
+			{
+				replacement.ResetInventory(inventory);
+				replacement.Health = health;
+				foreach (ItemType ammoType in ammo.Keys)
+				{
+					replacement.Inventory.UserInventory.ReserveAmmo[ammoType] = ammo[ammoType];
+					replacement.Inventory.SendAmmoNextFrame = true;
+				}
+				replacement.Broadcast(5, "<i>You have replaced a player who has disconnected.</i>");
+				if (replacement.Role == RoleType.Scp079)
+				{
+					replacement.ReferenceHub.scp079PlayerScript.Lvl = scp079lvl;
+					replacement.ReferenceHub.scp079PlayerScript.Exp = scp079exp;
+				}
+			});
 		}
 
 		private void TryGet966()
@@ -261,7 +298,7 @@ namespace DCReplace
 			{
 				if (scp966Plugin == null)
 				{
-					scp966Plugin = (Exiled.API.Interfaces.IPlugin<Exiled.API.Interfaces.IConfig>)Loader.Plugins.FirstOrDefault(pl => pl.Name == "scp966");
+					scp966Plugin = Loader.Plugins.FirstOrDefault(pl => pl.Name == "scp966");
 				}
 				scp966PlayerReference = (Player)(scp966Plugin?.Assembly?.GetType("scp966.API.Scp966API")?.GetMethod("GetLastScp966", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null));
 			}
