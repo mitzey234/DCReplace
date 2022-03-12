@@ -2,6 +2,8 @@
 using Exiled.API.Features;
 using Exiled.Events.EventArgs;
 using Exiled.Loader;
+using InventorySystem.Items;
+using InventorySystem.Items.Usables.Scp330;
 using MEC;
 using SharedLogicOrchestrator;
 using System;
@@ -314,6 +316,12 @@ namespace DCReplace
 			{
 				replacement.ResetInventory(prevInventory.Items.Select(x => x.Type).ToList());
 
+
+
+
+
+
+
 				replacement.Health = prevInventory.Health;
 
 				foreach (ItemType ammoType in prevInventory.Ammo.Keys)
@@ -321,8 +329,28 @@ namespace DCReplace
 					replacement.Inventory.UserInventory.ReserveAmmo[ammoType] = prevInventory.Ammo[ammoType];
 					replacement.Inventory.SendAmmoNextFrame = true;
 				}
+
+				Timing.CallDelayed(0.5f, () =>
+				{
+					foreach (KeyValuePair<ushort, ItemBase> item in replacement.Inventory.UserInventory.Items)
+					{
+						Scp330Bag scp330Bag;
+						if ((object)(scp330Bag = (item.Value as Scp330Bag)) != null)
+						{
+							scp330Bag.Candies.Clear();
+							scp330Bag.Candies.AddRange(prevInventory.currentCandies);
+							scp330Bag.ServerConfirmAcqusition();
+						}
+					}
+
+				});
+
+
 				replacement.Broadcast(5, "<i>You have replaced a player who has disconnected.</i>");
 			});
+
+
+
 		}
 
 
