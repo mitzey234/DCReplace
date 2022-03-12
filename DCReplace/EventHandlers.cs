@@ -340,6 +340,7 @@ namespace DCReplace
 							scp330Bag.Candies.Clear();
 							scp330Bag.Candies.AddRange(prevInventory.currentCandies);
 							scp330Bag.ServerConfirmAcqusition();
+							break;
 						}
 					}
 
