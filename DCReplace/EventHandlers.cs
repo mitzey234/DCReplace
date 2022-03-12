@@ -9,6 +9,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using UnityEngine;
+using static DCReplace.UtilityInformation.UtilityInfo;
+using static SharedLogicOrchestrator.DebugFilters;
 
 namespace DCReplace
 {
@@ -26,16 +28,12 @@ namespace DCReplace
 
 		private List<CoroutineHandle> currentReplacementCoroutines;
 
-		enum replacementType : ushort
-		{
-			Unknown = 0,
-			NonScp = 1,
-			Scp035 = 2,
-			Serpents = 3,
-			Spies = 4,
-			Scp966 = 5
-		}
 
+
+		/// <summary>
+		/// Gets the last 035 player from Scp035 DLL logic, which is a hash of the player and their information.
+		/// </summary>
+		/// <param name="currPlayer"></param>
 		private void TryGet035(Player currPlayer)
 		{
 
@@ -62,12 +60,18 @@ namespace DCReplace
 			}
 			catch (Exception e)
 			{
-				Log.Debug("Failed getting 035s: " + e);
+				Log.Debug("Failed getting 035s: " + e, DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
 			}
 
 			return;
 		}
 
+
+		/// <summary>
+		/// Used to get the previous 035 items, if needed.
+		/// </summary>
+		/// <param name="player"></param>
+		/// <returns></returns>
 		private CloneablePlayerInformation TryGetLast035Items(Player player)
 		{
 
@@ -118,6 +122,11 @@ namespace DCReplace
 			Loader.Plugins.FirstOrDefault(pl => pl.Name == "SerpentsHand")?.Assembly?.GetType("SerpentsHand.API.SerpentsHand")?.GetMethod("SpawnPlayer", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, new object[] { player, false });
 
 		}
+
+		/// <summary>
+		/// Gets the last 035 player from Scp035 DLL logic, which is a hash of the player and their information.
+		/// </summary>
+		/// <param name="player"></param>
 		private void TrySpawn035(Player player)
 		{
 
@@ -126,6 +135,10 @@ namespace DCReplace
 		}
 
 
+		/// <summary>
+		/// Replaces the player based on the type of player, uses the same items, ammo, etc if possible.
+		/// </summary>
+		/// <param name="player"></param>
 		private void ReplacePlayer(Player player)
 		{
 			bool is035 = false;
@@ -145,7 +158,7 @@ namespace DCReplace
 				//May want to consider by nickname or something.
 				is035 = scp035PlayerReference != null && scp035PlayerReference == player;
 				string data = scp035PlayerReference != null ? scp035PlayerReference.Nickname : "Data returned null";
-				Log.Debug($"Who was player {player.Nickname} and were they 035: {is035} and if they weren't what was result: {data}", DCReplace.instance.Config.debugEnabled);
+				Log.Debug($"Who was player {player.Nickname} and were they 035: {is035} and if they weren't what was result: {data}", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
 
 				if (is035)
 				{
@@ -155,7 +168,7 @@ namespace DCReplace
 			catch (Exception x)
 			{
 				Log.Error(x);
-				Log.Debug("SCP-035 is not installed, skipping method call...");
+				Log.Debug("SCP-035 is not installed, skipping method call...", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
 			}
 
 			try
@@ -170,13 +183,15 @@ namespace DCReplace
 			catch (Exception x)
 			{
 				Log.Error(x);
-				Log.Debug("Serpents Hand is not installed, skipping method call...");
+				Log.Debug("Serpents Hand is not installed, skipping method call...", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
 			}
 
 			try
 			{
 				spies = TryGetSpies();
 
+
+				//Because I don't have access to spies, I have to make less optimal path if spies exists.
 				if (spies != null)
 				{
 
@@ -190,7 +205,7 @@ namespace DCReplace
 			catch (Exception x)
 			{
 				Log.Error(x);
-				Log.Debug("CISpy is not installed, skipping method call...");
+				Log.Debug("CISpy is not installed, skipping method call...", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
 			}
 
 			try
@@ -206,12 +221,14 @@ namespace DCReplace
 			catch (Exception x)
 			{
 				Log.Error(x);
-				Log.Debug("CISpy is not installed, skipping method call...");
+				Log.Debug("CISpy is not installed, skipping method call...", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
 			}
 
+
+			//If we were not uique SCP's, we assume we are either SCP or non-scp
 			if (currentReplaceType == replacementType.Unknown)
 			{
-				currentReplaceType = replacementType.NonScp;
+				currentReplaceType = replacementType.NonUniqueScp;
 			}
 
 			currentReplacementCoroutines.Add(Timing.RunCoroutine(ReplacePlayerWhenAvailable(currentReplaceType, spies, cloneablePlayerInformation)));
@@ -250,9 +267,9 @@ namespace DCReplace
 					{
 						TrySpawnSH(replacement);
 					}
-					catch (Exception x)
+					catch (Exception serpantHandFailedToLoad)
 					{
-						Log.Debug("Serpents Hand is not installed, skipping method call...");
+						Log.Debug($"Serpents Hand is not installed, skipping method call... {serpantHandFailedToLoad}", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
 					}
 				}
 				else if (spies != null && spies.ContainsKey(originalPlayer))
@@ -262,9 +279,9 @@ namespace DCReplace
 						TrySpawnSpy(replacement, originalPlayer, spies);
 						loadPlayerWithReplacement(originalPlayer, replacement, cloneablePlayerInformation.Items.Select(x => x.Type).ToList());
 					}
-					catch (Exception x)
+					catch (Exception spiesFailedToLoad)
 					{
-						Log.Debug("CISpy is not installed, skipping method call...");
+						Log.Debug($"CISpy is not installed, skipping method call... {spiesFailedToLoad}", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
 					}
 					return;
 				}
@@ -274,9 +291,9 @@ namespace DCReplace
 					{
 						TrySpawn035(replacement);
 					}
-					catch (Exception x)
+					catch (Exception scp035FailedToLoad)
 					{
-						Log.Debug($"SCP-035 is not installed, skipping method call... {x}");
+						Log.Debug($"SCP-035 is not installed, skipping method call... {scp035FailedToLoad}", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
 					}
 				}
 				loadPlayerWithReplacement(replacement, cloneablePlayerInformation);
@@ -285,8 +302,6 @@ namespace DCReplace
 
 		private void loadPlayerWithReplacement(Player replacement, CloneablePlayerInformation prevInventory)
 		{
-			Log.Debug($"What was previous inventory {prevInventory}", DCReplace.instance.Config.debugEnabled);
-
 
 			byte scp079lvl = 1;
 			float scp079exp = 0f;
@@ -369,7 +384,7 @@ namespace DCReplace
 			}
 			catch (Exception e)
 			{
-				Log.Debug("Failed getting 966s: " + e);
+				Log.Debug("Failed getting 966s: " + e, DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
 			}
 		}
 
