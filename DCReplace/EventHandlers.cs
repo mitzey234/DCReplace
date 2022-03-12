@@ -310,7 +310,6 @@ namespace DCReplace
 				scp079lvl = prevInventory.scp079lvl;
 				scp079exp = prevInventory.scp079exp;
 			}
-
 			Timing.CallDelayed(0.5f, () =>
 			{
 				replacement.ResetInventory(prevInventory.Items.Select(x => x.Type).ToList());
