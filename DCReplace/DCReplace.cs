@@ -8,6 +8,8 @@ namespace DCReplace
 
 		private bool state = false;
 
+		internal static DCReplace instance;
+
 		public override void OnEnabled()
 		{
 			if (state) return;
@@ -15,6 +17,9 @@ namespace DCReplace
 			if (!Config.IsEnabled) return;
 
 			ev = new EventHandlers();
+
+			instance = this;
+
 
 			Exiled.Events.Handlers.Player.Left += ev.OnPlayerLeave;
 			Exiled.Events.Handlers.Scp106.Containing += ev.OnContain106;
@@ -41,7 +46,7 @@ namespace DCReplace
 			Exiled.Events.Handlers.Scp106.Containing -= ev.OnContain106;
 
 			ev = null;
-
+			instance = null;
 			state = false;
 			base.OnDisabled();
 		}
