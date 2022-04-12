@@ -2,8 +2,6 @@
 using Exiled.API.Features;
 using Exiled.Events.EventArgs;
 using Exiled.Loader;
-using InventorySystem.Items;
-using InventorySystem.Items.Usables.Scp330;
 using MEC;
 using SharedLogicOrchestrator;
 using System;
@@ -11,8 +9,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using UnityEngine;
-using static DCReplace.UtilityInformation.UtilityInfo;
-using static SharedLogicOrchestrator.DebugFilters;
 
 namespace DCReplace
 {
@@ -28,14 +24,6 @@ namespace DCReplace
 		private Player scp966PlayerReference;
 		private Exiled.API.Interfaces.IPlugin<Exiled.API.Interfaces.IConfig> scp966Plugin;
 
-		private List<CoroutineHandle> currentReplacementCoroutines;
-
-
-
-		/// <summary>
-		/// Gets the last 035 player from Scp035 DLL logic, which is a hash of the player and their information.
-		/// </summary>
-		/// <param name="currPlayer"></param>
 		private void TryGet035(Player currPlayer)
 		{
 
@@ -62,18 +50,12 @@ namespace DCReplace
 			}
 			catch (Exception e)
 			{
-				Log.Debug("Failed getting 035s: " + e, DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
+				Log.Debug("Failed getting 035s: " + e);
 			}
 
 			return;
 		}
 
-
-		/// <summary>
-		/// Used to get the previous 035 items, if needed.
-		/// </summary>
-		/// <param name="player"></param>
-		/// <returns></returns>
 		private CloneablePlayerInformation TryGetLast035Items(Player player)
 		{
 
@@ -124,11 +106,6 @@ namespace DCReplace
 			Loader.Plugins.FirstOrDefault(pl => pl.Name == "SerpentsHand")?.Assembly?.GetType("SerpentsHand.API.SerpentsHand")?.GetMethod("SpawnPlayer", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, new object[] { player, false });
 
 		}
-
-		/// <summary>
-		/// Gets the last 035 player from Scp035 DLL logic, which is a hash of the player and their information.
-		/// </summary>
-		/// <param name="player"></param>
 		private void TrySpawn035(Player player)
 		{
 
@@ -137,10 +114,6 @@ namespace DCReplace
 		}
 
 
-		/// <summary>
-		/// Replaces the player based on the type of player, uses the same items, ammo, etc if possible.
-		/// </summary>
-		/// <param name="player"></param>
 		private void ReplacePlayer(Player player)
 		{
 			bool is035 = false;
@@ -149,9 +122,7 @@ namespace DCReplace
 			if (isContain106 && player.Role == RoleType.Scp106) return;
 			Dictionary<Player, bool> spies = null;
 			//We need this very early on
-			replacementType currentReplaceType = replacementType.Unknown;
-			CloneablePlayerInformation cloneablePlayerInformation = CloneablePlayerInformation.clonePlayer(player);
-			player.ClearInventory();
+
 
 			try
 			{
@@ -160,198 +131,119 @@ namespace DCReplace
 				//May want to consider by nickname or something.
 				is035 = scp035PlayerReference != null && scp035PlayerReference == player;
 				string data = scp035PlayerReference != null ? scp035PlayerReference.Nickname : "Data returned null";
-				Log.Debug($"Who was player {player.Nickname} and were they 035: {is035} and if they weren't what was result: {data}", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
-
-				if (is035)
-				{
-					currentReplaceType = replacementType.Scp035;
-				}
+				Log.Info($"Who was player {player.Nickname} and were they 035: {is035} and if they weren't what was result: {data}");
 			}
 			catch (Exception x)
 			{
 				Log.Error(x);
-				Log.Debug("SCP-035 is not installed, skipping method call...", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
+				Log.Debug("SCP-035 is not installed, skipping method call...");
 			}
 
 			try
 			{
 				isSH = TryGetSH().Contains(player);
-
-				if (isSH)
-				{
-					currentReplaceType = replacementType.Serpents;
-				}
 			}
 			catch (Exception x)
 			{
 				Log.Error(x);
-				Log.Debug("Serpents Hand is not installed, skipping method call...", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
+				Log.Debug("Serpents Hand is not installed, skipping method call...");
 			}
 
 			try
 			{
 				spies = TryGetSpies();
-
-
-				//Because I don't have access to spies, I have to make less optimal path if spies exists.
-				if (spies != null)
-				{
-
-					Player replacement = Player.List.FirstOrDefault(x => x.Role == RoleType.Spectator && x.Id != cloneablePlayerInformation.Id);
-
-					ReplacePlayerNowAvailable(replacement, replacementType.Spies, spies, cloneablePlayerInformation, player);
-					return;
-				}
-
 			}
 			catch (Exception x)
 			{
 				Log.Error(x);
-				Log.Debug("CISpy is not installed, skipping method call...", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
+				Log.Debug("CISpy is not installed, skipping method call...");
 			}
 
 			try
 			{
 				TryGet966();
 				is966 = scp966PlayerReference != null && scp966PlayerReference == player;
-
-				if (is966)
-				{
-					currentReplaceType = replacementType.Scp966;
-				}
 			}
 			catch (Exception x)
 			{
 				Log.Error(x);
-				Log.Debug("CISpy is not installed, skipping method call...", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
+				Log.Debug("CISpy is not installed, skipping method call...");
 			}
 
 
-			//If we were not uique SCP's, we assume we are either SCP or non-scp
-			if (currentReplaceType == replacementType.Unknown)
-			{
-				currentReplaceType = replacementType.NonUniqueScp;
-			}
-
-			currentReplacementCoroutines.Add(Timing.RunCoroutine(ReplacePlayerWhenAvailable(currentReplaceType, spies, cloneablePlayerInformation)));
-
-
-		}
-
-		private IEnumerator<float> ReplacePlayerWhenAvailable(replacementType currentReplaceType,
-			Dictionary<Player, bool> spies, CloneablePlayerInformation cloneablePlayerInformation)
-		{
-			Player replacement = Player.List.FirstOrDefault(x => x.Role == RoleType.Spectator && x.Id != cloneablePlayerInformation.Id
-			&& !(x.Nickname.Equals(cloneablePlayerInformation.Nickname)) && !x.IsOverwatchEnabled);
-			//Prevents early leave issue
-			while (replacement == null)
-			{
-				yield return Timing.WaitForSeconds(5);
-				replacement = Player.List.FirstOrDefault(x => x.Role == RoleType.Spectator && x.Id != cloneablePlayerInformation.Id
-			&& !(x.Nickname.Equals(cloneablePlayerInformation.Nickname)) && !x.IsOverwatchEnabled);
-			}
-
-			ReplacePlayerNowAvailable(replacement, currentReplaceType, spies, cloneablePlayerInformation);
-		}
-
-		private void ReplacePlayerNowAvailable(Player replacement, replacementType currentReplaceType,
-			Dictionary<Player, bool> spies, CloneablePlayerInformation cloneablePlayerInformation, Player originalPlayer = null)
-		{
-
+			Player replacement = Player.List.FirstOrDefault(x => x.Role == RoleType.Spectator && x.Id != player.Id && !x.IsOverwatchEnabled);
 			if (replacement != null)
 			{
+				// Have to do this early
+				List<ItemType> inventory = player.Items.Select(x => x.Type).ToList();
 
-				PositionsToSpawn.Add(replacement, cloneablePlayerInformation.Position);
-				replacement.SetRole(cloneablePlayerInformation.Role);
-				if (currentReplaceType is replacementType.Serpents)
+
+				player.ClearInventory();
+
+				PositionsToSpawn.Add(replacement, player.Position);
+				if (isSH)
 				{
 					try
 					{
 						TrySpawnSH(replacement);
 					}
-					catch (Exception serpantHandFailedToLoad)
+					catch (Exception x)
 					{
-						Log.Debug($"Serpents Hand is not installed, skipping method call... {serpantHandFailedToLoad}", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
+						Log.Debug("Serpents Hand is not installed, skipping method call...");
 					}
 				}
-				else if (spies != null && spies.ContainsKey(originalPlayer))
+				else replacement.SetRole(player.Role);
+				if (spies != null && spies.ContainsKey(player))
 				{
 					try
 					{
-						TrySpawnSpy(replacement, originalPlayer, spies);
-						loadPlayerWithReplacement(originalPlayer, replacement, cloneablePlayerInformation.Items.Select(x => x.Type).ToList());
+						TrySpawnSpy(replacement, player, spies);
 					}
-					catch (Exception spiesFailedToLoad)
+					catch (Exception x)
 					{
-						Log.Debug($"CISpy is not installed, skipping method call... {spiesFailedToLoad}", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
+						Log.Debug("CISpy is not installed, skipping method call...");
 					}
-					return;
 				}
-				else if (currentReplaceType is replacementType.Scp035)
+				if (is035)
 				{
 					try
 					{
 						TrySpawn035(replacement);
+						CloneablePlayerInformation newInventory = TryGetLast035Items(player);
+						loadPlayerWithReplacement(replacement, newInventory);
 					}
-					catch (Exception scp035FailedToLoad)
+					catch (Exception x)
 					{
-						Log.Debug($"SCP-035 is not installed, skipping method call... {scp035FailedToLoad}", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
+						Log.Debug($"SCP-035 is not installed, skipping method call... {x}");
 					}
+					return;
 				}
-				loadPlayerWithReplacement(replacement, cloneablePlayerInformation);
+
+				/*if ((string)Loader.Plugins.First(pl => pl.Name == "scp966")?.Assembly?.GetType("scp966.API.Scp966API")?.GetMethod("GetLastScp966", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null) == player.UserId)
+				{
+					Loader.Plugins.First(pl => pl.Name == "scp966").Assembly.GetType("scp966.API.Scp966API").GetMethod("Spawn966", BindingFlags.Public | BindingFlags.Static).Invoke(null, new object[] { replacement });
+				}*/
+
+				// save info
+				loadPlayerWithReplacement(player, replacement, inventory);
 			}
 		}
-
 		private void loadPlayerWithReplacement(Player replacement, CloneablePlayerInformation prevInventory)
 		{
-
-			byte scp079lvl = 1;
-			float scp079exp = 0f;
-			if (prevInventory.Role == RoleType.Scp079)
-			{
-				scp079lvl = prevInventory.scp079lvl;
-				scp079exp = prevInventory.scp079exp;
-			}
+			Log.Debug($"What was previous inventory {prevInventory}");
 			Timing.CallDelayed(0.5f, () =>
 			{
 				replacement.ResetInventory(prevInventory.Items.Select(x => x.Type).ToList());
 
-
-
-
-
-
-
 				replacement.Health = prevInventory.Health;
-
+				Dictionary<ItemType, ushort> ammo = new Dictionary<ItemType, ushort>();
 				foreach (ItemType ammoType in prevInventory.Ammo.Keys)
 				{
-					replacement.Inventory.UserInventory.ReserveAmmo[ammoType] = prevInventory.Ammo[ammoType];
+					replacement.Inventory.UserInventory.ReserveAmmo[ammoType] = ammo[ammoType];
 					replacement.Inventory.SendAmmoNextFrame = true;
 				}
-
-				Timing.CallDelayed(0.5f, () =>
-				{
-					foreach (KeyValuePair<ushort, ItemBase> item in replacement.Inventory.UserInventory.Items)
-					{
-						Scp330Bag scp330Bag;
-						if ((object)(scp330Bag = (item.Value as Scp330Bag)) != null)
-						{
-							scp330Bag.Candies.Clear();
-							scp330Bag.Candies.AddRange(prevInventory.currentCandies);
-							scp330Bag.ServerConfirmAcqusition();
-							break;
-						}
-					}
-
-				});
-
-
 				replacement.Broadcast(5, "<i>You have replaced a player who has disconnected.</i>");
 			});
-
-
-
 		}
 
 
@@ -412,7 +304,7 @@ namespace DCReplace
 			}
 			catch (Exception e)
 			{
-				Log.Debug("Failed getting 966s: " + e, DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
+				Log.Debug("Failed getting 966s: " + e);
 			}
 		}
 
@@ -421,15 +313,9 @@ namespace DCReplace
 			isContain106 = false;
 			isRoundStarted = true;
 			PositionsToSpawn.Clear();
-			currentReplacementCoroutines = new List<CoroutineHandle>();
 		}
 
-		public void OnRoundEnd(RoundEndedEventArgs ev)
-		{
-			isRoundStarted = false;
-			Timing.KillCoroutines(currentReplacementCoroutines.ToArray());
-			currentReplacementCoroutines.Clear();
-		}
+		public void OnRoundEnd(RoundEndedEventArgs ev) => isRoundStarted = false;
 
 		public void OnContain106(ContainingEventArgs ev) => isContain106 = true;
 
