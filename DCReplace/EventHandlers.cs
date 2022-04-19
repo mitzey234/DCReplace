@@ -132,11 +132,17 @@ namespace DCReplace
 			Player replacement = Player.List.FirstOrDefault(x => x.Role == RoleType.Spectator && x.Id != player.Id && !x.IsOverwatchEnabled);
 			if (replacement != null)
 			{
+				bool is079 = player.Role == RoleType.Scp079;
+
 				// Have to do this early
 				var inventory = player.Items.Select(x => x.Type).ToList();
 				player.ClearInventory();
 
-				PositionsToSpawn.Add(replacement, player.Position);
+				if (!is079)
+				{
+					PositionsToSpawn.Add(replacement, player.Position);
+				}
+
 				if (isSH)
 				{
 					try
@@ -182,7 +188,7 @@ namespace DCReplace
 				float health = player.Health;
 				byte scp079lvl = 1;
 				float scp079exp = 0f;
-				if (player.Role == RoleType.Scp079)
+				if (is079)
 				{
 					scp079lvl = player.ReferenceHub.scp079PlayerScript.Lvl;
 					scp079exp = player.ReferenceHub.scp079PlayerScript.Exp;
@@ -192,15 +198,18 @@ namespace DCReplace
 
 				Timing.CallDelayed(0.5f, () =>
 				{
-					replacement.ResetInventory(inventory);
-					replacement.Health = health;
-					foreach (ItemType ammoType in ammo.Keys)
+					if (!is079)
 					{
-						replacement.Inventory.UserInventory.ReserveAmmo[ammoType] = ammo[ammoType];
-						replacement.Inventory.SendAmmoNextFrame = true;
+						replacement.ResetInventory(inventory);
+						replacement.Health = health;
+						foreach (ItemType ammoType in ammo.Keys)
+						{
+							replacement.Inventory.UserInventory.ReserveAmmo[ammoType] = ammo[ammoType];
+							replacement.Inventory.SendAmmoNextFrame = true;
+						}
 					}
 					replacement.Broadcast(5, "<i>You have replaced a player who has disconnected.</i>");
-					if (replacement.Role == RoleType.Scp079)
+					if (is079)
 					{
 						replacement.ReferenceHub.scp079PlayerScript.Lvl = scp079lvl;
 						replacement.ReferenceHub.scp079PlayerScript.Exp = scp079exp;
