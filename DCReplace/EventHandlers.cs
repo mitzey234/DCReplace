@@ -1,14 +1,18 @@
-﻿using MEC;
-using System.Linq;
-using UnityEngine;
+﻿using Exiled.API.Enums;
+using Exiled.API.Features;
+using Exiled.Events.EventArgs;
+using Exiled.Loader;
+using InventorySystem.Items;
+using InventorySystem.Items.Usables.Scp330;
+using MEC;
+using SharedLogicOrchestrator;
 using System;
 using System.Collections.Generic;
-using Exiled.Events.EventArgs;
-using Exiled.API.Features;
-using Exiled.API.Enums;
-using Exiled.Loader;
+using System.Linq;
 using System.Reflection;
-using CustomPlayerEffects;
+using UnityEngine;
+using static DCReplace.UtilityInformation.UtilityInfo;
+using static SharedLogicOrchestrator.DebugFilters;
 
 namespace DCReplace
 {
@@ -19,30 +23,66 @@ namespace DCReplace
 
 		private Dictionary<Player, Vector3> PositionsToSpawn = new Dictionary<Player, Vector3>();
 
-		private List<Player> TryGet035()
-		{
-			List<Player> scp035 = null;
+		private Player scp035PlayerReference = null;
+		private Exiled.API.Interfaces.IPlugin<Exiled.API.Interfaces.IConfig> scp035Plugin;
+		private Player scp966PlayerReference;
+		private Exiled.API.Interfaces.IPlugin<Exiled.API.Interfaces.IConfig> scp966Plugin;
 
-			foreach (var plugin in Loader.Plugins)
+		private List<CoroutineHandle> currentReplacementCoroutines;
+
+
+
+		/// <summary>
+		/// Gets the last 035 player from Scp035 DLL logic, which is a hash of the player and their information.
+		/// </summary>
+		/// <param name="currPlayer"></param>
+		private void TryGet035(Player currPlayer)
+		{
+
+			Log.Info("Getting035");
+
+			if (scp035Plugin != null)
 			{
-				if (plugin.Name == "scp035")
-				{
-					try
-					{
-						scp035 = (List<Player>)Loader.Plugins.First(pl => pl.Name == "scp035").Assembly.GetType("scp035.API.Scp035Data").GetMethod("GetScp035s", BindingFlags.Public | BindingFlags.Static).Invoke(null, null);
-					}
-					catch (Exception e)
-					{
-						Log.Debug("Failed getting 035s: " + e);
-						scp035 = new List<Player>();
-					}
-				}
+
+				//Under assumption of only 1 035 allowed at one time. 
+				scp035PlayerReference = (Player)scp035Plugin?.Assembly?.GetType("scp035.API.Scp035Data")?.GetMethod("GetScp035IfRecentlyExisted", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, new object[] { currPlayer });
+				return;
 			}
-			if (scp035 == null) scp035 = new List<Player>();
-			return scp035;
+
+
+
+			try
+			{
+
+				//Under assumption of only 1 035 allowed at one time. 
+
+				scp035Plugin = Loader.Plugins.FirstOrDefault(pl => pl.Name == "scp035");
+
+				scp035PlayerReference = (Player)scp035Plugin?.Assembly?.GetType("scp035.API.Scp035Data")?.GetMethod("GetScp035IfRecentlyExisted", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, new object[] { currPlayer });
+			}
+			catch (Exception e)
+			{
+				Log.Debug("Failed getting 035s: " + e, DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
+			}
+
+			return;
 		}
 
-		private List<Player> TryGetSH() 
+
+		/// <summary>
+		/// Used to get the previous 035 items, if needed.
+		/// </summary>
+		/// <param name="player"></param>
+		/// <returns></returns>
+		private CloneablePlayerInformation TryGetLast035Items(Player player)
+		{
+
+			return (CloneablePlayerInformation)Loader.Plugins.FirstOrDefault(pl => pl.Name == "scp035")?.Assembly?.GetType("scp035.API.Scp035Data")?.GetMethod("GetScp035ItemsIfRecentlyExisted", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, new object[] { player });
+
+		}
+
+
+		private List<Player> TryGetSH()
 		{
 			List<Player> Serpants;
 			if (Loader.Plugins.Where(pl => pl.Name == "SerpentsHand").ToList().Count > 0)
@@ -66,41 +106,33 @@ namespace DCReplace
 		private Dictionary<Player, bool> TryGetSpies()
 		{
 			Dictionary<Player, bool> players = new Dictionary<Player, bool>();
-			if (Loader.Plugins.FirstOrDefault(pl => pl.Name == "CiSpy") != null)
-				players = (Dictionary<Player, bool>)Loader.Plugins.First(pl => pl.Name == "CiSpy").Assembly.GetType("CISpy.API.SpyData").GetMethod("GetSpies", BindingFlags.Public | BindingFlags.Static).Invoke(null, null);
+
+			players = (Dictionary<Player, bool>)Loader.Plugins.FirstOrDefault(pl => pl.Name == "CiSpy")?.Assembly?.GetType("CISpy.API.SpyData")?.GetMethod("GetSpies", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null);
 			return players;
 		}
 
-		private void TrySpawnSpy(Player player, Player dc, Dictionary<Player, bool> spies) 
+		private void TrySpawnSpy(Player player, Player dc, Dictionary<Player, bool> spies)
 		{
-			if (Loader.Plugins.FirstOrDefault(pl => pl.Name == "CiSpy") != null)
-			{
-				Loader.Plugins.First(pl => pl.Name == "CiSpy").Assembly.GetType("CISpy.API.SpyData").GetMethod("MakeSpy", BindingFlags.Public | BindingFlags.Static).Invoke(null, new object[] { player, spies[dc], false });
-			}
+
+			Loader.Plugins.FirstOrDefault(pl => pl.Name == "CiSpy")?.Assembly?.GetType("CISpy.API.SpyData")?.GetMethod("MakeSpy", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, new object[] { player, spies[dc], false });
+
 		}
 
-		private void TrySpawnSH(Player player) 
+		private void TrySpawnSH(Player player)
 		{
-			if (Loader.Plugins.FirstOrDefault(pl => pl.Name == "SerpentsHand") != null)
-			{
-				Loader.Plugins.First(pl => pl.Name == "SerpentsHand").Assembly.GetType("SerpentsHand.API.SerpentsHand").GetMethod("SpawnPlayer", BindingFlags.Public | BindingFlags.Static).Invoke(null, new object[] { player, false });
-			}
-		} 
-		private void TrySpawn035(Player player)
-		{
-			if (Loader.Plugins.FirstOrDefault(pl => pl.Name == "scp035") != null)
-			{
-				Loader.Plugins.First(pl => pl.Name == "scp035").Assembly.GetType("scp035.API.Scp035Data").GetMethod("Spawn035", BindingFlags.Public | BindingFlags.Static).Invoke(null, new object[] { player });
-			}
+
+			Loader.Plugins.FirstOrDefault(pl => pl.Name == "SerpentsHand")?.Assembly?.GetType("SerpentsHand.API.SerpentsHand")?.GetMethod("SpawnPlayer", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, new object[] { player, false });
+
 		}
 
 		/// <summary>
-		/// Gets the last 966 player from Scp966 DLL logic, which is a hash of the player and their information.
+		/// Gets the last 035 player from Scp035 DLL logic, which is a hash of the player and their information.
 		/// </summary>
 		/// <param name="player"></param>
-		private void TrySpawn966(Player player)
+		private void TrySpawn035(Player player)
 		{
-			scp966Plugin?.Assembly?.GetType("scp966.API.Scp966API")?.GetMethod("Spawn966", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, new object[] { player });
+
+			Loader.Plugins.FirstOrDefault(pl => pl.Name == "scp035")?.Assembly?.GetType("scp035.API.Scp035Data")?.GetMethod("Spawn035", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, new object[] { player });
 
 		}
 
@@ -113,59 +145,85 @@ namespace DCReplace
 		{
 			bool is035 = false;
 			bool isSH = false;
+			bool is966 = false;
 			if (isContain106 && player.Role == RoleType.Scp106) return;
 			Dictionary<Player, bool> spies = null;
 			//We need this very early on
 			replacementType currentReplaceType = replacementType.Unknown;
 			CloneablePlayerInformation cloneablePlayerInformation = CloneablePlayerInformation.clonePlayer(player);
-
 			player.ClearInventory();
 
 			try
 			{
-				is035 = TryGet035().Contains(player);
+
+				TryGet035(player);
+				//May want to consider by nickname or something.
+				is035 = scp035PlayerReference != null && scp035PlayerReference == player;
+				string data = scp035PlayerReference != null ? scp035PlayerReference.Nickname : "Data returned null";
+				Log.Debug($"Who was player {player.Nickname} and were they 035: {is035} and if they weren't what was result: {data}", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
+
+				if (is035)
+				{
+					currentReplaceType = replacementType.Scp035;
+				}
 			}
 			catch (Exception x)
 			{
 				Log.Error(x);
-				Log.Debug("SCP-035 is not installed, skipping method call...");
+				Log.Debug("SCP-035 is not installed, skipping method call...", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
 			}
 
 			try
 			{
 				isSH = TryGetSH().Contains(player);
+
+				if (isSH)
+				{
+					currentReplaceType = replacementType.Serpents;
+				}
 			}
 			catch (Exception x)
 			{
-				Log.Debug("Serpents Hand is not installed, skipping method call...");
+				Log.Error(x);
+				Log.Debug("Serpents Hand is not installed, skipping method call...", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
 			}
 
 			try
 			{
 				spies = TryGetSpies();
+
+
+				//Because I don't have access to spies, I have to make less optimal path if spies exists.
+				if (spies != null)
+				{
+
+					Player replacement = Player.List.FirstOrDefault(x => x.Role == RoleType.Spectator && x.Id != cloneablePlayerInformation.Id);
+
+					ReplacePlayerNowAvailable(replacement, replacementType.Spies, spies, cloneablePlayerInformation, player);
+					return;
+				}
+
 			}
 			catch (Exception x)
 			{
-				Log.Debug("CISpy is not installed, skipping method call...");
+				Log.Error(x);
+				Log.Debug("CISpy is not installed, skipping method call...", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
 			}
 
 			try
 			{
-				Log.Debug("966 does exist, and is being used. We haven't checked yet");
 				TryGet966();
 				is966 = scp966PlayerReference != null && scp966PlayerReference == player;
 
 				if (is966)
 				{
-					scp966Plugin?.Assembly?.GetType("scp966.API.Scp966API")?.GetMethod("RemoveLastScp966Player", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null);
-					Log.Debug("966 does exist, and is being used.");
 					currentReplaceType = replacementType.Scp966;
 				}
 			}
 			catch (Exception x)
 			{
 				Log.Error(x);
-				Log.Debug("scp966 is not installed, skipping method call...", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
+				Log.Debug("CISpy is not installed, skipping method call...", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
 			}
 
 
@@ -202,95 +260,130 @@ namespace DCReplace
 
 			if (replacement != null)
 			{
-				// Have to do this early
-				var inventory = player.Items.Select(x => x.Type).ToList();
-				player.ClearInventory();
 
-				PositionsToSpawn.Add(replacement, player.Position);
-				if (isSH)
+				PositionsToSpawn.Add(replacement, cloneablePlayerInformation.Position);
+				replacement.SetRole(cloneablePlayerInformation.Role);
+				if (currentReplaceType is replacementType.Serpents)
 				{
 					try
 					{
 						TrySpawnSH(replacement);
 					}
-					catch (Exception x)
+					catch (Exception serpantHandFailedToLoad)
 					{
-						Log.Debug("Serpents Hand is not installed, skipping method call...");
+						Log.Debug($"Serpents Hand is not installed, skipping method call... {serpantHandFailedToLoad}", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
 					}
 				}
-				else replacement.SetRole(player.Role);
-				if (spies != null && spies.ContainsKey(player))
+				else if (spies != null && spies.ContainsKey(originalPlayer))
 				{
 					try
 					{
-						TrySpawnSpy(replacement, player, spies);
+						TrySpawnSpy(replacement, originalPlayer, spies);
+						loadPlayerWithReplacement(originalPlayer, replacement, cloneablePlayerInformation.Items.Select(x => x.Type).ToList());
 					}
-					catch (Exception x)
+					catch (Exception spiesFailedToLoad)
 					{
-						Log.Debug("CISpy is not installed, skipping method call...");
+						Log.Debug($"CISpy is not installed, skipping method call... {spiesFailedToLoad}", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
 					}
+					return;
 				}
-				if (is035)
+				else if (currentReplaceType is replacementType.Scp035)
 				{
 					try
 					{
-						// todo: fix this
-						//TrySpawn035(replacement);
+						TrySpawn035(replacement);
 					}
-					catch (Exception x)
+					catch (Exception scp035FailedToLoad)
 					{
-						Log.Debug("SCP-035 is not installed, skipping method call...");
-					}
-				}
-				else if (currentReplaceType is replacementType.Scp966)
-				{
-					try
-					{
-						TrySpawn966(replacement);
-					}
-					catch (Exception scp966FailedToLoad)
-					{
-						Log.Debug($"SCP-966 is not installed, skipping method call... {scp966FailedToLoad}", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
+						Log.Debug($"SCP-035 is not installed, skipping method call... {scp035FailedToLoad}", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
 					}
 				}
 				loadPlayerWithReplacement(replacement, cloneablePlayerInformation);
 			}
 		}
 
-				/*if ((string)Loader.Plugins.First(pl => pl.Name == "scp966")?.Assembly?.GetType("scp966.API.Scp966API")?.GetMethod("GetLastScp966", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null) == player.UserId)
-				{
-					Loader.Plugins.First(pl => pl.Name == "scp966").Assembly.GetType("scp966.API.Scp966API").GetMethod("Spawn966", BindingFlags.Public | BindingFlags.Static).Invoke(null, new object[] { replacement });
-				}*/
+		private void loadPlayerWithReplacement(Player replacement, CloneablePlayerInformation prevInventory)
+		{
 
-				// save info
-				float health = player.Health;
-				byte scp079lvl = 1;
-				float scp079exp = 0f;
-				if (player.Role == RoleType.Scp079)
+			byte scp079lvl = 1;
+			float scp079exp = 0f;
+			if (prevInventory.Role == RoleType.Scp079)
+			{
+				scp079lvl = prevInventory.scp079lvl;
+				scp079exp = prevInventory.scp079exp;
+			}
+			Timing.CallDelayed(0.5f, () =>
+			{
+				replacement.ResetInventory(prevInventory.Items.Select(x => x.Type).ToList());
+
+
+
+
+
+
+
+				replacement.Health = prevInventory.Health;
+
+				foreach (ItemType ammoType in prevInventory.Ammo.Keys)
 				{
-					scp079lvl = player.ReferenceHub.scp079PlayerScript.Lvl;
-					scp079exp = player.ReferenceHub.scp079PlayerScript.Exp;
+					replacement.Inventory.UserInventory.ReserveAmmo[ammoType] = prevInventory.Ammo[ammoType];
+					replacement.Inventory.SendAmmoNextFrame = true;
 				}
-				Dictionary<ItemType, ushort> ammo = new Dictionary<ItemType, ushort>();
-				foreach (ItemType ammoType in player.Ammo.Keys) ammo.Add(ammoType, player.Ammo[ammoType]);
 
 				Timing.CallDelayed(0.5f, () =>
 				{
-					replacement.ResetInventory(inventory);
-					replacement.Health = health;
-					foreach (ItemType ammoType in ammo.Keys)
+					foreach (KeyValuePair<ushort, ItemBase> item in replacement.Inventory.UserInventory.Items)
 					{
-						replacement.Inventory.UserInventory.ReserveAmmo[ammoType] = ammo[ammoType];
-						replacement.Inventory.SendAmmoNextFrame = true;
+						Scp330Bag scp330Bag;
+						if ((object)(scp330Bag = (item.Value as Scp330Bag)) != null)
+						{
+							scp330Bag.Candies.Clear();
+							scp330Bag.Candies.AddRange(prevInventory.currentCandies);
+							scp330Bag.ServerConfirmAcqusition();
+							break;
+						}
 					}
-					replacement.Broadcast(5, "<i>You have replaced a player who has disconnected.</i>");
-					if (replacement.Role == RoleType.Scp079)
-					{
-						replacement.ReferenceHub.scp079PlayerScript.Lvl = scp079lvl;
-						replacement.ReferenceHub.scp079PlayerScript.Exp = scp079exp;
-					}
+
 				});
+
+
+				replacement.Broadcast(5, "<i>You have replaced a player who has disconnected.</i>");
+			});
+
+
+
+		}
+
+
+		private void loadPlayerWithReplacement(Player player, Player replacement, List<ItemType> inventory)
+		{
+			float health = player.Health;
+			byte scp079lvl = 1;
+			float scp079exp = 0f;
+			if (player.Role == RoleType.Scp079)
+			{
+				scp079lvl = player.ReferenceHub.scp079PlayerScript.Lvl;
+				scp079exp = player.ReferenceHub.scp079PlayerScript.Exp;
 			}
+			Dictionary<ItemType, ushort> ammo = new Dictionary<ItemType, ushort>();
+			foreach (ItemType ammoType in player.Ammo.Keys) ammo.Add(ammoType, player.Ammo[ammoType]);
+
+			Timing.CallDelayed(0.5f, () =>
+			{
+				replacement.ResetInventory(inventory);
+				replacement.Health = health;
+				foreach (ItemType ammoType in ammo.Keys)
+				{
+					replacement.Inventory.UserInventory.ReserveAmmo[ammoType] = ammo[ammoType];
+					replacement.Inventory.SendAmmoNextFrame = true;
+				}
+				replacement.Broadcast(5, "<i>You have replaced a player who has disconnected.</i>");
+				if (replacement.Role == RoleType.Scp079)
+				{
+					replacement.ReferenceHub.scp079PlayerScript.Lvl = scp079lvl;
+					replacement.ReferenceHub.scp079PlayerScript.Exp = scp079exp;
+				}
+			});
 		}
 
 		private void TryGet966()
@@ -303,16 +396,9 @@ namespace DCReplace
 				}
 
 			*/
-
-
-			Log.Info("Getting966");
-
-
-
 			if (scp966Plugin != null)
 			{
-
-				scp966PlayerReference = ((Player)scp966Plugin?.Assembly?.GetType("scp966.API.Scp966API")?.GetMethod("GetLastScp966Player", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null));
+				scp966PlayerReference = ((Player)Loader.Plugins.First(pl => pl.Name == "scp966")?.Assembly?.GetType("scp966.API.Scp966API")?.GetMethod("GetLastScp966", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null));
 				return;
 			}
 
@@ -320,23 +406,14 @@ namespace DCReplace
 			{
 				if (scp966Plugin == null)
 				{
-
 					scp966Plugin = Loader.Plugins.FirstOrDefault(pl => pl.Name == "scp966");
-					foreach (var item in Loader.Plugins)
-					{
-						Log.Debug($" Plugin name {item.Name}");
-					}
 				}
-				scp966PlayerReference = (Player)(scp966Plugin?.Assembly?.GetType("scp966.API.Scp966API")?.GetMethod("GetLastScp966Player", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null));
-
-				Log.Debug($"Going to assume player reference is null {scp966PlayerReference == null}");
+				scp966PlayerReference = (Player)(scp966Plugin?.Assembly?.GetType("scp966.API.Scp966API")?.GetMethod("GetLastScp966", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null));
 			}
 			catch (Exception e)
 			{
 				Log.Debug("Failed getting 966s: " + e, DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
 			}
-
-			return;
 		}
 
 		public void OnRoundStart()
@@ -344,9 +421,15 @@ namespace DCReplace
 			isContain106 = false;
 			isRoundStarted = true;
 			PositionsToSpawn.Clear();
+			currentReplacementCoroutines = new List<CoroutineHandle>();
 		}
 
-		public void OnRoundEnd(RoundEndedEventArgs ev) => isRoundStarted = false;
+		public void OnRoundEnd(RoundEndedEventArgs ev)
+		{
+			isRoundStarted = false;
+			Timing.KillCoroutines(currentReplacementCoroutines.ToArray());
+			currentReplacementCoroutines.Clear();
+		}
 
 		public void OnContain106(ContainingEventArgs ev) => isContain106 = true;
 
