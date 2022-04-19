@@ -94,12 +94,32 @@ namespace DCReplace
 			}
 		}
 
+		/// <summary>
+		/// Gets the last 966 player from Scp966 DLL logic, which is a hash of the player and their information.
+		/// </summary>
+		/// <param name="player"></param>
+		private void TrySpawn966(Player player)
+		{
+			scp966Plugin?.Assembly?.GetType("scp966.API.Scp966API")?.GetMethod("Spawn966", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, new object[] { player });
+
+		}
+
+
+		/// <summary>
+		/// Replaces the player based on the type of player, uses the same items, ammo, etc if possible.
+		/// </summary>
+		/// <param name="player"></param>
 		private void ReplacePlayer(Player player)
 		{
 			bool is035 = false;
 			bool isSH = false;
 			if (isContain106 && player.Role == RoleType.Scp106) return;
 			Dictionary<Player, bool> spies = null;
+			//We need this very early on
+			replacementType currentReplaceType = replacementType.Unknown;
+			CloneablePlayerInformation cloneablePlayerInformation = CloneablePlayerInformation.clonePlayer(player);
+
+			player.ClearInventory();
 
 			try
 			{
@@ -129,7 +149,57 @@ namespace DCReplace
 				Log.Debug("CISpy is not installed, skipping method call...");
 			}
 
-			Player replacement = Player.List.FirstOrDefault(x => x.Role == RoleType.Spectator && x.Id != player.Id && !x.IsOverwatchEnabled);
+			try
+			{
+				Log.Debug("966 does exist, and is being used. We haven't checked yet");
+				TryGet966();
+				is966 = scp966PlayerReference != null && scp966PlayerReference == player;
+
+				if (is966)
+				{
+					scp966Plugin?.Assembly?.GetType("scp966.API.Scp966API")?.GetMethod("RemoveLastScp966Player", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null);
+					Log.Debug("966 does exist, and is being used.");
+					currentReplaceType = replacementType.Scp966;
+				}
+			}
+			catch (Exception x)
+			{
+				Log.Error(x);
+				Log.Debug("scp966 is not installed, skipping method call...", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
+			}
+
+
+			//If we were not uique SCP's, we assume we are either SCP or non-scp
+			if (currentReplaceType == replacementType.Unknown)
+			{
+				currentReplaceType = replacementType.NonUniqueScp;
+			}
+
+			currentReplacementCoroutines.Add(Timing.RunCoroutine(ReplacePlayerWhenAvailable(currentReplaceType, spies, cloneablePlayerInformation)));
+
+
+		}
+
+		private IEnumerator<float> ReplacePlayerWhenAvailable(replacementType currentReplaceType,
+			Dictionary<Player, bool> spies, CloneablePlayerInformation cloneablePlayerInformation)
+		{
+			Player replacement = Player.List.FirstOrDefault(x => x.Role == RoleType.Spectator && x.Id != cloneablePlayerInformation.Id
+			&& !(x.Nickname.Equals(cloneablePlayerInformation.Nickname)) && !x.IsOverwatchEnabled);
+			//Prevents early leave issue
+			while (replacement == null)
+			{
+				yield return Timing.WaitForSeconds(5);
+				replacement = Player.List.FirstOrDefault(x => x.Role == RoleType.Spectator && x.Id != cloneablePlayerInformation.Id
+			&& !(x.Nickname.Equals(cloneablePlayerInformation.Nickname)) && !x.IsOverwatchEnabled);
+			}
+
+			ReplacePlayerNowAvailable(replacement, currentReplaceType, spies, cloneablePlayerInformation);
+		}
+
+		private void ReplacePlayerNowAvailable(Player replacement, replacementType currentReplaceType,
+			Dictionary<Player, bool> spies, CloneablePlayerInformation cloneablePlayerInformation, Player originalPlayer = null)
+		{
+
 			if (replacement != null)
 			{
 				// Have to do this early
@@ -172,6 +242,20 @@ namespace DCReplace
 						Log.Debug("SCP-035 is not installed, skipping method call...");
 					}
 				}
+				else if (currentReplaceType is replacementType.Scp966)
+				{
+					try
+					{
+						TrySpawn966(replacement);
+					}
+					catch (Exception scp966FailedToLoad)
+					{
+						Log.Debug($"SCP-966 is not installed, skipping method call... {scp966FailedToLoad}", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
+					}
+				}
+				loadPlayerWithReplacement(replacement, cloneablePlayerInformation);
+			}
+		}
 
 				/*if ((string)Loader.Plugins.First(pl => pl.Name == "scp966")?.Assembly?.GetType("scp966.API.Scp966API")?.GetMethod("GetLastScp966", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null) == player.UserId)
 				{
@@ -207,6 +291,52 @@ namespace DCReplace
 					}
 				});
 			}
+		}
+
+		private void TryGet966()
+		{
+			/*
+			 * 	
+			 * 	if ((string)Loader.Plugins.First(pl => pl.Name == "scp966")?.Assembly?.GetType("scp966.API.Scp966API")?.GetMethod("GetLastScp966", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null) == player.UserId)
+				{
+					Loader.Plugins.First(pl => pl.Name == "scp966").Assembly.GetType("scp966.API.Scp966API").GetMethod("Spawn966", BindingFlags.Public | BindingFlags.Static).Invoke(null, new object[] { replacement });
+				}
+
+			*/
+
+
+			Log.Info("Getting966");
+
+
+
+			if (scp966Plugin != null)
+			{
+
+				scp966PlayerReference = ((Player)scp966Plugin?.Assembly?.GetType("scp966.API.Scp966API")?.GetMethod("GetLastScp966Player", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null));
+				return;
+			}
+
+			try
+			{
+				if (scp966Plugin == null)
+				{
+
+					scp966Plugin = Loader.Plugins.FirstOrDefault(pl => pl.Name == "scp966");
+					foreach (var item in Loader.Plugins)
+					{
+						Log.Debug($" Plugin name {item.Name}");
+					}
+				}
+				scp966PlayerReference = (Player)(scp966Plugin?.Assembly?.GetType("scp966.API.Scp966API")?.GetMethod("GetLastScp966Player", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null));
+
+				Log.Debug($"Going to assume player reference is null {scp966PlayerReference == null}");
+			}
+			catch (Exception e)
+			{
+				Log.Debug("Failed getting 966s: " + e, DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
+			}
+
+			return;
 		}
 
 		public void OnRoundStart()
