@@ -121,6 +121,17 @@ namespace DCReplace
             Loader.Plugins.FirstOrDefault(pl => pl.Name == "scp035")?.Assembly?.GetType("scp035.API.Scp035Data")?.GetMethod("Spawn035", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, new object[] { player });
         }
 
+
+        /// <summary>
+        /// Gets the last 966 player from Scp966 DLL logic, which is a hash of the player and their information.
+        /// </summary>
+        /// <param name="player"></param>
+        private void TrySpawn966(Player player)
+        {
+            scp966Plugin?.Assembly?.GetType("scp966.API.Scp966API")?.GetMethod("Spawn966", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, new object[] { player });
+
+        }
+
         /// <summary>
         /// Replaces the player based on the type of player, uses the same items, ammo, etc if possible.
         /// </summary>
@@ -204,6 +215,7 @@ namespace DCReplace
 
                 if (is966)
                 {
+                    Log.Debug("This player was 966");
                     currentReplaceType = replacementType.Scp966;
                 }
             }
@@ -224,6 +236,7 @@ namespace DCReplace
         private IEnumerator<float> ReplacePlayerWhenAvailable(replacementType currentReplaceType,
             Dictionary<Player, bool> spies, CloneablePlayerInformation cloneablePlayerInformation)
         {
+            Log.Debug($"What was the previous CloneablePlayerInformation health {cloneablePlayerInformation.Health}", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
             Player replacement = Player.List.FirstOrDefault(x => x.Role == RoleType.Spectator && x.Id != cloneablePlayerInformation.Id
             && !(x.Nickname.Equals(cloneablePlayerInformation.Nickname)) && !x.IsOverwatchEnabled);
             //Prevents early leave issue
@@ -284,6 +297,19 @@ namespace DCReplace
                         Log.Debug($"SCP-035 is not installed, skipping method call... {scp035FailedToLoad}", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
                     }
                 }
+
+                else if (currentReplaceType is replacementType.Scp966)
+                {
+                    try
+                    {
+                        TrySpawn966(replacement);
+                    }
+                    catch (Exception scp966FailedToLoad)
+                    {
+                        Log.Debug($"SCP-966 is not installed, skipping method call... {scp966FailedToLoad}", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
+                    }
+                }
+
                 loadPlayerWithReplacement(replacement, cloneablePlayerInformation, is079);
             }
         }
@@ -295,7 +321,8 @@ namespace DCReplace
                 if (!is079)
                 {
                     replacement.ResetInventory(prevInventory.Items.Select(x => x.Type).ToList());
-
+                    Log.Debug($"What was the previous health {prevInventory.Health}", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
+                    //TODO fix AHP
                     replacement.Health = prevInventory.Health;
 
                     foreach (ItemType ammoType in prevInventory.Ammo.Keys)
