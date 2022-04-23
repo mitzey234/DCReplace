@@ -195,7 +195,7 @@ namespace DCReplace
                 if (spies != null)
                 {
 
-                    Player replacement = Player.List.FirstOrDefault(x => x.Role == RoleType.Spectator && x.Id != cloneablePlayerInformation.Id);
+                    Player replacement = Player.List.FirstOrDefault(x => x.Role == RoleType.Spectator && x.Id != cloneablePlayerInformation.Id && !x.IsOverwatchEnabled);
 
                     ReplacePlayerNowAvailable(replacement, replacementType.Spies, spies, cloneablePlayerInformation, player);
                     return;
@@ -237,14 +237,12 @@ namespace DCReplace
             Dictionary<Player, bool> spies, CloneablePlayerInformation cloneablePlayerInformation)
         {
             Log.Debug($"What was the previous CloneablePlayerInformation health {cloneablePlayerInformation.Health}", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
-            Player replacement = Player.List.FirstOrDefault(x => x.Role == RoleType.Spectator && x.Id != cloneablePlayerInformation.Id
-            && !(x.Nickname.Equals(cloneablePlayerInformation.Nickname)) && !x.IsOverwatchEnabled);
+            Player replacement = Player.List.FirstOrDefault(x => x.Role == RoleType.Spectator && x.Id != cloneablePlayerInformation.Id && !(x.Nickname.Equals(cloneablePlayerInformation.Nickname)) && !x.IsOverwatchEnabled);
             //Prevents early leave issue
             while (replacement == null)
             {
                 yield return Timing.WaitForSeconds(5);
-                replacement = Player.List.FirstOrDefault(x => x.Role == RoleType.Spectator && x.Id != cloneablePlayerInformation.Id
-            && !(x.Nickname.Equals(cloneablePlayerInformation.Nickname)) && !x.IsOverwatchEnabled);
+                replacement = Player.List.FirstOrDefault(x => x.Role == RoleType.Spectator && x.Id != cloneablePlayerInformation.Id && !(x.Nickname.Equals(cloneablePlayerInformation.Nickname)) && !x.IsOverwatchEnabled);
             }
 
             ReplacePlayerNowAvailable(replacement, currentReplaceType, spies, cloneablePlayerInformation);
