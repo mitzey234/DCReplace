@@ -23,6 +23,7 @@ namespace DCReplace
 			Exiled.Events.Handlers.Player.Left += ev.OnPlayerLeave;
 			Exiled.Events.Handlers.Scp106.Containing += ev.OnContain106;
 			Exiled.Events.Handlers.Server.RoundStarted += ev.OnRoundStart;
+			Exiled.Events.Handlers.Player.Verified += ev.OnPlayerJoin;
 			Exiled.Events.Handlers.Player.Spawning += ev.OnSpawning;
 			Exiled.Events.Handlers.Player.ChangingRole += ev.OnChangeRole;
 			Exiled.Events.Handlers.Server.RoundEnded += ev.OnRoundEnd;
@@ -41,6 +42,7 @@ namespace DCReplace
 			Exiled.Events.Handlers.Player.Left -= ev.OnPlayerLeave;
 			Exiled.Events.Handlers.Scp106.Containing -= ev.OnContain106;
 			Exiled.Events.Handlers.Server.RoundStarted -= ev.OnRoundStart;
+			Exiled.Events.Handlers.Player.Verified -= ev.OnPlayerJoin;
 			Exiled.Events.Handlers.Player.Spawning -= ev.OnSpawning;
 			Exiled.Events.Handlers.Player.ChangingRole -= ev.OnChangeRole;
 			Exiled.Events.Handlers.Server.RoundEnded -= ev.OnRoundEnd;

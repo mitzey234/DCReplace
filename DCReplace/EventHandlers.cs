@@ -141,10 +141,7 @@ namespace DCReplace
             bool is035 = false;
             bool isSH = false;
             bool is966 = false;
-            if (isContain106 && player.Role == RoleType.Scp106)
-            {
-                return;
-            }
+            if (isContain106 && player.Role == RoleType.Scp106) return;
 
             Dictionary<Player, bool> spies = null;
             //We need this very early on
@@ -154,7 +151,6 @@ namespace DCReplace
 
             try
             {
-
                 TryGet035(player);
                 //May want to consider by nickname or something.
                 is035 = scp035PlayerReference != null && scp035PlayerReference == player;
@@ -195,7 +191,7 @@ namespace DCReplace
                 if (spies != null)
                 {
 
-                    Player replacement = Player.List.FirstOrDefault(x => x.Role == RoleType.Spectator && x.Id != cloneablePlayerInformation.Id && !x.IsOverwatchEnabled);
+                    Player replacement = Player.List.FirstOrDefault(x => x.Role == RoleType.Spectator && x.Id != cloneablePlayerInformation.Id && !x.IsOverwatchEnabled && !x.SessionVariables.ContainsKey("LaterJoin"));
 
                     ReplacePlayerNowAvailable(replacement, replacementType.Spies, spies, cloneablePlayerInformation, player);
                     return;
@@ -237,12 +233,12 @@ namespace DCReplace
             Dictionary<Player, bool> spies, CloneablePlayerInformation cloneablePlayerInformation)
         {
             Log.Debug($"What was the previous CloneablePlayerInformation health {cloneablePlayerInformation.Health}", DCReplace.instance.Config.DebugFilters[DebugFilter.Finer]);
-            Player replacement = Player.List.FirstOrDefault(x => x.Role == RoleType.Spectator && x.Id != cloneablePlayerInformation.Id && !(x.Nickname.Equals(cloneablePlayerInformation.Nickname)) && !x.IsOverwatchEnabled);
+            Player replacement = Player.List.FirstOrDefault(x => x.Role == RoleType.Spectator && x.Id != cloneablePlayerInformation.Id && !x.IsOverwatchEnabled && !x.SessionVariables.ContainsKey("LaterJoin"));
             //Prevents early leave issue
             while (replacement == null)
             {
                 yield return Timing.WaitForSeconds(5);
-                replacement = Player.List.FirstOrDefault(x => x.Role == RoleType.Spectator && x.Id != cloneablePlayerInformation.Id && !(x.Nickname.Equals(cloneablePlayerInformation.Nickname)) && !x.IsOverwatchEnabled);
+                replacement = Player.List.FirstOrDefault(x => x.Role == RoleType.Spectator && x.Id != cloneablePlayerInformation.Id && !x.IsOverwatchEnabled && !x.SessionVariables.ContainsKey("LaterJoin"));
             }
 
             ReplacePlayerNowAvailable(replacement, currentReplaceType, spies, cloneablePlayerInformation);
@@ -425,6 +421,11 @@ namespace DCReplace
 
         public void OnSpawning(SpawningEventArgs ev)
         {
+            if (ev.Player.SessionVariables.ContainsKey("LaterJoin"))
+            {
+                ev.Player.SessionVariables.Remove("LaterJoin");
+            }
+            
             if (PositionsToSpawn.ContainsKey(ev.Player))
             {
                 ev.Position = PositionsToSpawn[ev.Player];
@@ -445,6 +446,11 @@ namespace DCReplace
             }
 
             ReplacePlayer(ev.Player);
+        }
+
+        public void OnPlayerJoin (VerifiedEventArgs ev)
+        {
+            if (ev.Player.ReferenceHub.characterClassManager.LaterJoinPossible()) ev.Player.SessionVariables.Add("LaterJoin", true);
         }
 
         public void OnPlayerLeave(LeftEventArgs ev)
